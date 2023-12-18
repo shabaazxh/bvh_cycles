@@ -173,30 +173,40 @@ void SceneModel::Render()
 
 	// duration since application started
 	auto currentTime = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime).count();
-	duration = duration * 0.5f;
-	auto total = 17;
+	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - startTime).count();
+	double duration = nanoseconds / 1e+9;
+	duration = duration * 0.1;
+	constexpr double total = 17.0;
 
 	// calculate the animations time in seconds using frame time and total amount of frames
-	float totalTimeInSeconds = total * 0.041667;
+	double totalTimeInSeconds = total * 0.041667f; // 0.708339
 
 	// how far into the cycle are we? example values: 5.5 = 5 cycles .5 is 50% into current cycle
-	auto currentCycleAmount = duration / totalTimeInSeconds;
+	auto currentCycleAmount = duration / totalTimeInSeconds; // 15.5513108836
 
-	// floor it to get the large integer part
+	// floor it to get the large integer parts
 	auto floor = std::floor(currentCycleAmount);
-	// subtract the integer part from the decimasl, so we keep only decimal part
-	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? slerp value
+	// subtract the integer part from the decimal, so we keep only decimal part
+	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? s value
 
-	auto correspondingFrame = total * currentCycleAmount;
-	auto lerpValue = std::ceil(correspondingFrame) - correspondingFrame;
+	double correspondingFrame = total * currentCycleAmount;
+	double useframe = ((int)correspondingFrame + 1) % 17;
 
-	//int frame = lerp(rf, vl, lerpValue);
+	auto lerpValue = correspondingFrame - std::floor(correspondingFrame);
 
-	if(duration == 11)
+	std::cout << "dur: " << duration << std::endl;
+
+	if((int)duration == 1)
 	{
-		//std::cout << "new frame: " << frame << std::endl;
+		std::cout << "Engine Time: " << duration << ", "
+		<< "AnimSeconds: " << totalTimeInSeconds << ", " 
+		<< "Cycle: " << currentCycleAmount << ", " 
+		<< "CorrespondingFrame: " << correspondingFrame << ", " 
+		<< "InUseFrame: " << useframe << ", " 
+		<< "lerpvalue: " << lerpValue << std::endl;
 	}
+
+	//std::cout << "duration: " << duration << " Cycle: " << currentCycleAmount << ", time: " << totalTimeInSeconds << std::endl;
 
 	float scale = 0.2f;
 	// Render the run cycle animation, looping itself 
@@ -219,25 +229,23 @@ void SceneModel::Render()
 
 	// Player controller
 	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, playerColour);
-	auto playerControl = (frameNumber + 1) % 17;
 	// Set the player matrix for movement in the world. This will allow the player to move and look
 	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_characterPosition) * m_playerLookMatrix * Matrix4::Scale(scale, scale, scale) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
-	std::cout << "SIZE: " << playerController.transitionTo.size() << std::endl;
-	playerController.Render(playerControllerMatrix, 1.0f, frame, Quaternion(), false);
+	playerController.Render(playerControllerMatrix, lerpValue, useframe, Quaternion(), false);
 
 	// Switch the animation being rendered based on the current state of the player
 	switch (m_AnimState)
 	{	
 		// If the player is running, render the running animation
 		case Running:
-			playerController.transitionTo.push_back(runCycle);
+			//playerController.transitionTo.push_back(runCycle);
 			//playerController.Render(playerControllerMatrix, 1.0f, playerControl, Quaternion(), false);
 			break;
 		// If the player is turning left, render the turning left animation
 		case TurnLeft:
 			//veerLeftCycle.Render(playerControllerMatrix, 1.0f, veerLeft);
-			playerController.transitionTo.push_back(veerLeftCycle);
-			m_AnimState = Running;
+			//playerController.transitionTo.push_back(veerLeftCycle);
+			//m_AnimState = Running;
 			break;
 		// // If the player is turning right, render the turning right animation
 		// case TurnRight:

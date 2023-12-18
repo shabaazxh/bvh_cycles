@@ -252,9 +252,13 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	// 	offset_from_parent.y = position.y;
 	// 	offset_from_parent.z = position.z;
 	// }
+	//std::cout << frame << std::endl;
+	int nextFrame = frame + scale;
 
+	// std::cout << "next frame: " << nextFrame << std::endl;
 	// get the rotation for the current joint
 	auto boneRotation = boneRotations[frame][joint->id];
+	auto nextFrameRotations = boneRotations[nextFrame][joint->id];
 	// translate using the offset
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
 	// set the global matrix to identity to begin with
@@ -275,18 +279,20 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	Quaternion rotZ = Quaternion(-boneRotation.z, Cartesian3(0.0f, 0.0f, 1.0f).unit());
 	rotZ.Normalize();
 
+	Quaternion nrotX = Quaternion(-nextFrameRotations.x, Cartesian3(1.0f, 0.0f, 0.0f).unit());
+	nrotX.Normalize();
+	Quaternion nrotY = Quaternion(-nextFrameRotations.y, Cartesian3(0.0f, 1.0f, 0.0f).unit());
+	nrotY.Normalize();
+	Quaternion nrotZ = Quaternion(-nextFrameRotations.z, Cartesian3(0.0f, 0.0f, 1.0f).unit());
+	nrotZ.Normalize();
+
 	auto currentRotation = (rotZ * rotY) * rotX;
+	auto nextRot = (rotZ * rotY) * rotX;
+
 	combinedQuaternion = currentRotation;
 	auto rotation = currentRotation.ToRotationMatrix();
 
-	if(transitionTo.empty())
-	{
-		std::cout << "ITS EMPTY" << std::endl;
-	}
-
-	std::cout << "INSIDE: " << transitionTo.size() << std::endl;
-	auto transitonQuaternion = transitionTo[transitionTo.size() - 1].GetRotation();
-	Quaternion blend = Slerp(transitonQuaternion, currentRotation, 1.0f);
+	Quaternion blend = Slerp(currentRotation, nextRot, scale);
 
 	auto finalRotationMatrix = blend.ToRotationMatrix();
 	if(useQuat)
