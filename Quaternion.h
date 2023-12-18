@@ -45,9 +45,9 @@ inline Quaternion operator*(float f, const Quaternion& q) {
 }
 
 
-inline Quaternion Slerp(Quaternion& q1, Quaternion& q2, float t)
+inline Quaternion Slerp(Quaternion q1, Quaternion q2, float t)
 {
-        // Compute the cosine of the angle between the two vectors.
+    // Compute the cosine of the angle between the two vectors.
     float dot = q1.w*q2.w + q1.x*q2.x + q1.y*q2.y + q1.z*q2.z;
 
     const float DOT_THRESHOLD = 0.9995f;
@@ -55,12 +55,12 @@ inline Quaternion Slerp(Quaternion& q1, Quaternion& q2, float t)
     {
         // If the inputs are too close for comfort, linearly interpolate
         // and normalize the result.
-        Quaternion result = q1 + t*(q2 - q1);
+        Quaternion result = (1 - t) * q1 + t * q2;
         result.Normalize();
         return result;
     }
 
-    // If the dot product is negative, slerp won't take
+    //If the dot product is negative, slerp won't take
     // the shorter path. Note that v1 and -v1 are equivalent when
     // the negation is applied to all four components. Fix by 
     // reversing one quaternion.
@@ -81,4 +81,8 @@ inline Quaternion Slerp(Quaternion& q1, Quaternion& q2, float t)
     Quaternion q3 = q2 - q1*dot;
     q3.Normalize(); // { v0, v2 } plane
     return q1*std::cos(theta) + q3*std::sin(theta);
+
+    // Quaternion result = (1 - t) * q1 + t * q2;
+    // result.Normalize();
+    // return result;
 }

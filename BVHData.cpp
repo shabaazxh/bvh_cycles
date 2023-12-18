@@ -202,15 +202,15 @@ void BVHData::ReadMotion(std::ifstream& inFile)
 
 int amount = 0;
 // render hierarchy for a given frame
-void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, const Quaternion& blendBetween, bool useQuat)
+void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, int endframe, const Quaternion& blendBetween, bool useQuat)
 	{ // Render()
 	// columnMajorMatrix matrix;
 	otherQuat = blendBetween;
 	this->useQuat = useQuat;
-	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame);
+	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame, endframe);
 	} // Render()
 // render a single joint for a given frame
-void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame)
+void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame, int endframe)
 	{ // RenderJoint()
 
 	// Construct homog4 from offset from joint offset
@@ -253,12 +253,11 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	// 	offset_from_parent.z = position.z;
 	// }
 	//std::cout << frame << std::endl;
-	int nextFrame = frame + scale;
-
 	// std::cout << "next frame: " << nextFrame << std::endl;
 	// get the rotation for the current joint
+	//std::cout << "Lerp: " << scale << std::endl;
 	auto boneRotation = boneRotations[frame][joint->id];
-	auto nextFrameRotations = boneRotations[nextFrame][joint->id];
+	auto nextFrameRotations = boneRotations[endframe][joint->id];
 	// translate using the offset
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
 	// set the global matrix to identity to begin with
@@ -286,53 +285,25 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	Quaternion nrotZ = Quaternion(-nextFrameRotations.z, Cartesian3(0.0f, 0.0f, 1.0f).unit());
 	nrotZ.Normalize();
 
-	auto currentRotation = (rotZ * rotY) * rotX;
-	auto nextRot = (rotZ * rotY) * rotX;
+	Quaternion currentRotation = (rotZ * rotY) * rotX;
+	Quaternion nextRot = (nrotZ * nrotY) * nrotX;
 
 	combinedQuaternion = currentRotation;
 	auto rotation = currentRotation.ToRotationMatrix();
 
-	Quaternion blend = Slerp(currentRotation, nextRot, scale);
+	Quaternion blend = Slerp(nextRot, currentRotation, scale);
 
 	auto finalRotationMatrix = blend.ToRotationMatrix();
-	if(useQuat)
-	{
-		global = parentMatrix * Offset * finalRotationMatrix;
-	} else{
-		global = parentMatrix * Offset * finalRotationMatrix;
-	}	
 
-	// if(joint->joint_name == "mixamorig1:LeftArm")
-	// {
-	// 	if(amount == 0)
-	// 	{
-	// 		std::cout << "Euler rotation: " << boneRotation << std::endl;
-	// 		std::cout << "Quaternion: " << concat.w << ", " << concat.x << ", " << concat.y << ", " << concat.z << std::endl;
+	global = parentMatrix * Offset * finalRotationMatrix;
 
-	// 		std::cout << "Quat Matrix: " << std::endl;
-	// 		for (int i = 0; i < 4; ++i) {
-	// 			for (int j = 0; j < 4; ++j) {
-	// 			std::cout << std::setw(10) << rotation[j][i] << " ";
-	// 			}
-	// 		std::cout << std::endl;
-	// 		}
 
-	// 		std::cout << "Rotation Matrix X: " << std::endl;
-	// 		for (int i = 0; i < 4; ++i) {
-	// 			for (int j = 0; j < 4; ++j) {
-	// 			std::cout << std::setw(10) << jointRotationMatrix[j][i] << " ";
-	// 			}
-	// 		std::cout << std::endl;
-	// 		}
+	Quaternion t1 = Quaternion(1, 0, 0, 0);
+	Quaternion t2 = Quaternion(0, 0, 0, 1);
 
-	// 		amount++;
-	// 	}
-	// 	//global = parentMatrix * Offset * jointRotationMatrix;
-	// }
-	// else 
-	// {
-		
-	// }
+	Quaternion result = Slerp(t1, t2, 0.9f);
+
+	std::cout <<  "Result: " << result.w << ", " << result.x << ", " << result.y << ", " << result.z << std::endl;
 
 	// multiply offset by parent matrix to get it into the correct space to render
 	offset_from_parent = parentMatrix * offset_from_parent;
@@ -354,7 +325,7 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 		}
 		
         // Recursively render the child joint
-        RenderJoint(viewMatrix, global, &child, scale, frame);
+        RenderJoint(viewMatrix, global, &child, scale, frame, endframe);
 	}
 
 } // RenderJoint()

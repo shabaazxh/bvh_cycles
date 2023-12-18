@@ -97,7 +97,7 @@ class SceneModel
 	// needed for now for Xiaoyuan's code
 	void EventSwitchMode();
 
-	inline int lerp(int a, int b, int t)
+	inline int lerp(float a, float b, float t)
 	{
 		return a + t  * (b - a);
 	}

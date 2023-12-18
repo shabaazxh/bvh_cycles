@@ -189,22 +189,18 @@ void SceneModel::Render()
 	// subtract the integer part from the decimal, so we keep only decimal part
 	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? s value
 
-	double correspondingFrame = total * currentCycleAmount;
-	double useframe = ((int)correspondingFrame + 1) % 17;
+	double correspondingFrame = total * currentCycleAmount; // current frame
+	double endframe = ((int)correspondingFrame + 1) % 17; // ending frame
 
 	auto lerpValue = correspondingFrame - std::floor(correspondingFrame);
 
-	std::cout << "dur: " << duration << std::endl;
-
-	if((int)duration == 1)
-	{
-		std::cout << "Engine Time: " << duration << ", "
-		<< "AnimSeconds: " << totalTimeInSeconds << ", " 
-		<< "Cycle: " << currentCycleAmount << ", " 
-		<< "CorrespondingFrame: " << correspondingFrame << ", " 
-		<< "InUseFrame: " << useframe << ", " 
-		<< "lerpvalue: " << lerpValue << std::endl;
-	}
+	// std::cout << "Engine Time: " << duration << ", "
+	// << "AnimSeconds: " << totalTimeInSeconds << ", " 
+	// << "Cycle: " << currentCycleAmount << ", " 
+	// << "currentframe: " << correspondingFrame << ", " 
+	// << "endframe: " << endframe << ", " 
+	// << "fract lerp: " << lerpValue << ", "
+	// << "lerp val: " << 1.0 - lerpValue << std::endl;
 
 	//std::cout << "duration: " << duration << " Cycle: " << currentCycleAmount << ", time: " << totalTimeInSeconds << std::endl;
 
@@ -231,7 +227,7 @@ void SceneModel::Render()
 	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, playerColour);
 	// Set the player matrix for movement in the world. This will allow the player to move and look
 	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_characterPosition) * m_playerLookMatrix * Matrix4::Scale(scale, scale, scale) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
-	playerController.Render(playerControllerMatrix, lerpValue, useframe, Quaternion(), false);
+	playerController.Render(playerControllerMatrix, 1.0 - lerpValue, (int)correspondingFrame, endframe, Quaternion(), false);
 
 	// Switch the animation being rendered based on the current state of the player
 	switch (m_AnimState)
