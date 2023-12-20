@@ -61,12 +61,7 @@ SceneModel::SceneModel()
 	m_controllerLessRunCyclePosition = Cartesian3(30.0f, 0.0f, -10.0f);
 
 	// Set the current animation state of the player to be Idle to begin with
-	m_AnimState = Running;
-
-	playerController.transitionTo.push_back(runCycle);
-
-	std::cout << "SIZE: " << playerController.transitionTo.size() << std::endl;
-
+	m_AnimState = Idle;
 	} // constructor
 
 
@@ -175,81 +170,32 @@ void SceneModel::Render()
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - startTime).count();
 	double duration = nanoseconds / 1e+9;
-	duration = duration * 0.1;
-	constexpr double total = 17.0;
-
-	// calculate the animations time in seconds using frame time and total amount of frames
-	double totalTimeInSeconds = total * 0.041667f; // 0.708339
-
-	// how far into the cycle are we? example values: 5.5 = 5 cycles .5 is 50% into current cycle
-	auto currentCycleAmount = duration / totalTimeInSeconds; // 15.5513108836
-
-	// floor it to get the large integer parts
-	auto floor = std::floor(currentCycleAmount);
-	// subtract the integer part from the decimal, so we keep only decimal part
-	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? s value
-
-	double correspondingFrame = total * currentCycleAmount; // current frame
-	double endframe = ((int)correspondingFrame + 1) % 17; // ending frame
-
-	auto lerpValue = correspondingFrame - std::floor(correspondingFrame);
-
-	// std::cout << "Engine Time: " << duration << ", "
-	// << "AnimSeconds: " << totalTimeInSeconds << ", " 
-	// << "Cycle: " << currentCycleAmount << ", " 
-	// << "currentframe: " << correspondingFrame << ", " 
-	// << "endframe: " << endframe << ", " 
-	// << "fract lerp: " << lerpValue << ", "
-	// << "lerp val: " << 1.0 - lerpValue << std::endl;
-
-	//std::cout << "duration: " << duration << " Cycle: " << currentCycleAmount << ", time: " << totalTimeInSeconds << std::endl;
 
 	float scale = 0.2f;
-	// Render the run cycle animation, looping itself 
-	// auto runframe = (frameNumber + 1) % 17; // get the correct frame number for the animation. This will ensure it loops
-	// auto runAnimMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_controllerLessRunCyclePosition) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f) * Matrix4::Scale(scale, scale, scale);
-	// runCycle.Render(runAnimMatrix, 1.0, frame, Quaternion(), true);	
-
-
-	// // // Render the veer-left animation, looping itself 
-	// auto veerLeft = (frameNumber + 1) % 33; // get the correct frame number for the animation. This will ensure it loops
-	// float veerLeftHeight = groundModel.getHeight(100.0f, 0.0f);
-	// auto veerLeftMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(Cartesian3(100.0f, veerLeftHeight, 0.0f)) * world2OpenGLMatrix * Matrix4::Translate(Cartesian3(100.0f, 0.0f, 0.0f)) * Matrix4::RotateX(-90.0f) * Matrix4::Scale(scale, scale, scale);
-	// veerLeftCycle.Render(veerLeftMatrix, 1.0f, veerLeft, Quaternion(), true);
-
-	// // Render the veer-right animation, looping itself 
-	// auto veerRight = (frameNumber + 1) % 33; // get the correct frame number for the animation. This will ensure it loops
-	// float veerRightHeight = groundModel.getHeight(-100.0f, 0.0f);
-	// auto veerRightMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(Cartesian3(-100.0f, veerRightHeight, 0.0f)) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f) * Matrix4::Scale(scale, scale, scale);
-	// veerRightCycle.Render(veerRightMatrix, 1.0f, veerRight, Quaternion(), true);
-
 	// Player controller
 	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, playerColour);
 	// Set the player matrix for movement in the world. This will allow the player to move and look
 	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_characterPosition) * m_playerLookMatrix * Matrix4::Scale(scale, scale, scale) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
-	playerController.Render(playerControllerMatrix, 1.0 - lerpValue, (int)correspondingFrame, endframe, Quaternion(), false);
+	playerController.Render(playerControllerMatrix, 0.5f, frameNumber, duration);
 
 	// Switch the animation being rendered based on the current state of the player
 	switch (m_AnimState)
-	{	
+	{
 		// If the player is running, render the running animation
 		case Running:
-			//playerController.transitionTo.push_back(runCycle);
-			//playerController.Render(playerControllerMatrix, 1.0f, playerControl, Quaternion(), false);
+			
+			if(playerController.transitionTo.size() < 1)
+			{
+				playerController.timeStart = std::chrono::high_resolution_clock::now();
+				playerController.transitionTo.push_back(veerLeftCycle);
+			}
 			break;
 		// If the player is turning left, render the turning left animation
 		case TurnLeft:
-			//veerLeftCycle.Render(playerControllerMatrix, 1.0f, veerLeft);
-			//playerController.transitionTo.push_back(veerLeftCycle);
-			//m_AnimState = Running;
 			break;
 		// // If the player is turning right, render the turning right animation
-		// case TurnRight:
-		// 	veerRightCycle.Render(playerControllerMatrix, 1.0f, veerRight);
-		// 	break;
 		// The default state of the player is in rest pose, (Idle)
 		default:
-			//restPose.Render(playerControllerMatrix, 1.0f, 0);
 			break;
 	}
 

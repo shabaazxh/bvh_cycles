@@ -97,11 +97,6 @@ class SceneModel
 	// needed for now for Xiaoyuan's code
 	void EventSwitchMode();
 
-	inline int lerp(float a, float b, float t)
-	{
-		return a + t  * (b - a);
-	}
-
 	// position and direction of the player/character 
 	Cartesian3 m_characterPosition;
 	Cartesian3 m_characterDirection;

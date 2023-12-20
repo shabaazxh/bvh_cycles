@@ -24,6 +24,7 @@
 #include <math.h>
 #include "Quaternion.h"
 #include <queue>
+#include <chrono>
 
 // A class for each joint
 class Joint
@@ -64,6 +65,8 @@ class BVHData
 	// a vector to store the parent bone's id for each joint
 	std::vector<int> parentBones;
 
+	double time;
+
 	// a vector to store all frames of the animation
 	// this is *JUST* a huge 2D array of floats
 	// in each frame, we have six channels for position and rotation for each joint
@@ -76,8 +79,6 @@ class BVHData
 
 	// a vector to store all bones' rotations for each frame
 	std::vector<std::vector<Cartesian3>> boneRotations;
-
-	Quaternion otherQuat;
 
 	Quaternion combinedQuaternion;
 
@@ -103,10 +104,10 @@ public:
 	BVHData();
 
 	// render bvh animation by given a sequence of frames data
-	void Render(Matrix4& viewMatrix, float scale, int frame, int endframe, const Quaternion& blendBetween = Quaternion(), bool useQuat = false);
+	void Render(Matrix4& viewMatrix, float scale, int frame, double time);
 
 	// render a single joint by given frame id
-	void RenderJoint(Matrix4& viewMatrix, Matrix4 HierarchicalMatrix, Joint* joint, float scale, int frame, int endframe);
+	void RenderJoint(Matrix4& viewMatrix, Matrix4 HierarchicalMatrix, Joint* joint, float scale, int frame);
 
 	// render cylinder given the start position and the end position
 	void RenderCylinder(Matrix4& viewMatrix, Cartesian3 start, Cartesian3 end, const Matrix4& a, const std::string& name);
@@ -142,7 +143,9 @@ public:
 	// check whether the given string is a number
 	bool isNumeric(const std::string&);
 
-	bool useQuat;
+	std::pair<double, int> FindInterpFrames();
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> timeStart;
 
 	//std::queue<BVHData> transitionTo;
 };

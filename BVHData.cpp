@@ -3,7 +3,6 @@
 // constructor
 BVHData::BVHData()
 	{ // constructor
-	 useQuat = false;
 	} // constructor
 	
 // read data from bvh file
@@ -200,17 +199,35 @@ void BVHData::ReadMotion(std::ifstream& inFile)
 		} // more data
 	} // ReadMotion()
 
+
+std::pair<double, int> BVHData::FindInterpFrames()
+{
+	double totalTimeInSeconds = frame_count * frame_time; // 0.708339
+
+	// how far into the cycle are we? example values: 5.5 = 5 cycles .5 is 50% into current cycle
+	auto currentCycleAmount = time / totalTimeInSeconds; // 15.5513108836
+
+	// floor it to get the large integer parts
+	auto floor = std::floor(currentCycleAmount);
+	// subtract the integer part from the decimal, so we keep only decimal part
+	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? s value
+
+	double correspondingFrame = frame_count * currentCycleAmount; // current frame
+	double endframe = ((int)correspondingFrame + 1) % frame_count; // ending frame
+
+	return {correspondingFrame, endframe};
+}
+
 int amount = 0;
 // render hierarchy for a given frame
-void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, int endframe, const Quaternion& blendBetween, bool useQuat)
+void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, double time)
 	{ // Render()
 	// columnMajorMatrix matrix;
-	otherQuat = blendBetween;
-	this->useQuat = useQuat;
-	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame, endframe);
+	this->time = time * 0.1;
+	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame);
 	} // Render()
 // render a single joint for a given frame
-void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame, int endframe)
+void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame)
 	{ // RenderJoint()
 
 	// Construct homog4 from offset from joint offset
@@ -222,28 +239,28 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	);
 
 	// use BVH_CHANNEL's to get the position update in x,y,z
-	Cartesian3 position = Cartesian3(0.0f, 0.0f, 0.0f);
-	for(int i = 0; i < joint->joint_channel.size(); i++)
-    {
-        const std::string& channel = joint->joint_channel[i];
-        float value = frames[frame][BVH_CHANNEL[channel]];
-		// if the channel is for x position, set the x position
-        if(channel == "Xposition")
-        {
-			position.x = value;
-        }
-		// if the channel is for y position, set the y position
-        if(channel == "Yposition")
-        {
-           position.y = value;
-        }
-		// if the channel is for z position, set the z position
-        if(channel == "Zposition")
-        {
-            position.z = value;
-        }
+	// Cartesian3 position = Cartesian3(0.0f, 0.0f, 0.0f);
+	// for(int i = 0; i < joint->joint_channel.size(); i++)
+    // {
+    //     const std::string& channel = joint->joint_channel[i];
+    //     float value = frames[frame][BVH_CHANNEL[channel]];
+	// 	// if the channel is for x position, set the x position
+    //     if(channel == "Xposition")
+    //     {
+	// 		position.x = value;
+    //     }
+	// 	// if the channel is for y position, set the y position
+    //     if(channel == "Yposition")
+    //     {
+    //        position.y = value;
+    //     }
+	// 	// if the channel is for z position, set the z position
+    //     if(channel == "Zposition")
+    //     {
+    //         position.z = value;
+    //     }
 
-    }
+    // }
 
 	// If this is the root join then apply the update position data
 	// if(joint->joint_name == "mixamorig1:Hips")
@@ -252,58 +269,55 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	// 	offset_from_parent.y = position.y;
 	// 	offset_from_parent.z = position.z;
 	// }
-	//std::cout << frame << std::endl;
-	// std::cout << "next frame: " << nextFrame << std::endl;
-	// get the rotation for the current joint
-	//std::cout << "Lerp: " << scale << std::endl;
-	auto boneRotation = boneRotations[frame][joint->id];
-	auto nextFrameRotations = boneRotations[endframe][joint->id];
+	
+	std::pair<double, int> blendFrames = FindInterpFrames();
+
+	// Unpack the pair to get the corresponding frame and endframe
+	double correspondingFrame = (frame + 1) % frame_count;
+	int endframe = blendFrames.second;
+	// calculate lerp value (fractional portion of corresponding)
+	auto lerpValue = correspondingFrame - std::floor(correspondingFrame);
+
+	auto boneRotation = boneRotations[(int)correspondingFrame][joint->id];
+	//auto nextFrameRotations = boneRotations[endframe][joint->id];
 	// translate using the offset
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
 	// set the global matrix to identity to begin with
 	auto global = Matrix4::Identity();
 
-	// Combine the rotations to form the rotation matrix
-	auto jointRotationMatrix = Matrix4::RotateX(-boneRotation.x) * (Matrix4::RotateY(-boneRotation.y) * Matrix4::RotateZ(-boneRotation.z)); //original
-	// auto jointRotationMatrix = Matrix4::RotateY(-boneRotation.y) * Matrix4::RotateX(-boneRotation.x) * Matrix4::RotateZ(-boneRotation.z);
-	// auto jointRotationMatrix = Matrix4::RotateY(-boneRotation.y) * (Matrix4::RotateX(-boneRotation.x) * Matrix4::RotateZ(-boneRotation.z));
-
-
 	// multiply matrices to get the final global matrix for the transformations
 	// global = parentMatrix * Offset * rotation;
-	Quaternion rotX = Quaternion(-boneRotation.x, Cartesian3(1.0f, 0.0f, 0.0f).unit());
-	rotX.Normalize();
-	Quaternion rotY = Quaternion(-boneRotation.y, Cartesian3(0.0f, 1.0f, 0.0f).unit());
-	rotY.Normalize();
-	Quaternion rotZ = Quaternion(-boneRotation.z, Cartesian3(0.0f, 0.0f, 1.0f).unit());
-	rotZ.Normalize();
+	Quaternion rotX = Quaternion(-boneRotation.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); rotX.Normalize();
+	Quaternion rotY = Quaternion(-boneRotation.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); rotY.Normalize();
+	Quaternion rotZ = Quaternion(-boneRotation.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); rotZ.Normalize();
 
-	Quaternion nrotX = Quaternion(-nextFrameRotations.x, Cartesian3(1.0f, 0.0f, 0.0f).unit());
-	nrotX.Normalize();
-	Quaternion nrotY = Quaternion(-nextFrameRotations.y, Cartesian3(0.0f, 1.0f, 0.0f).unit());
-	nrotY.Normalize();
-	Quaternion nrotZ = Quaternion(-nextFrameRotations.z, Cartesian3(0.0f, 0.0f, 1.0f).unit());
-	nrotZ.Normalize();
+	Quaternion currentFrameRotationQuat = (rotZ * rotY) * rotX;
+	//std::cout << "t quat: " << currentFrameRotationQuat.w << ", " << currentFrameRotationQuat.x << ", " << currentFrameRotationQuat.y << ", " << currentFrameRotationQuat.z << std::endl;
 
-	Quaternion currentRotation = (rotZ * rotY) * rotX;
-	Quaternion nextRot = (nrotZ * nrotY) * nrotX;
+	// Quaternion nextFrameRotationQuat = (nrotZ * nrotY) * nrotX;
+	// Get the lerp value
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - timeStart).count();
+	double time_in_seconds = nanoseconds / 1e+9;
+	float user_defined_lerp = scale;
+	double amount_to_lerp = std::fmod(time_in_seconds, user_defined_lerp) / user_defined_lerp;
 
-	combinedQuaternion = currentRotation;
-	auto rotation = currentRotation.ToRotationMatrix();
-
-	Quaternion blend = Slerp(nextRot, currentRotation, scale);
-
-	auto finalRotationMatrix = blend.ToRotationMatrix();
+	Matrix4 finalRotationMatrix = currentFrameRotationQuat.ToRotationMatrix();
+	if(!transitionTo.empty())
+	{
+		auto frame_for_second_anim = (frame + 1) % transitionTo[transitionTo.size() - 1].frame_count;
+		std::cout << "Frame: " << (int)correspondingFrame << ", " << frame_for_second_anim << ", lerp: " << amount_to_lerp << std::endl;
+		auto nextFrameRotations = transitionTo[transitionTo.size() - 1].boneRotations[(int)correspondingFrame][joint->id];
+		Quaternion nrotX = Quaternion(-nextFrameRotations.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); nrotX.Normalize();
+		Quaternion nrotY = Quaternion(-nextFrameRotations.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); nrotY.Normalize();
+		Quaternion nrotZ = Quaternion(-nextFrameRotations.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); nrotZ.Normalize();
+		Quaternion nextFrameRotationQuat = (nrotZ * nrotY) * nrotX;
+		//std::cout << "first quat: " << nextFrameRotationQuat.w << ", " << nextFrameRotationQuat.x << ", " << nextFrameRotationQuat.y << ", " << nextFrameRotationQuat.z << std::endl;
+		auto blend = Slerp(nextFrameRotationQuat , currentFrameRotationQuat, amount_to_lerp);
+		finalRotationMatrix = blend.ToRotationMatrix();
+	}
 
 	global = parentMatrix * Offset * finalRotationMatrix;
-
-
-	Quaternion t1 = Quaternion(1, 0, 0, 0);
-	Quaternion t2 = Quaternion(0, 0, 0, 1);
-
-	Quaternion result = Slerp(t1, t2, 0.9f);
-
-	std::cout <<  "Result: " << result.w << ", " << result.x << ", " << result.y << ", " << result.z << std::endl;
 
 	// multiply offset by parent matrix to get it into the correct space to render
 	offset_from_parent = parentMatrix * offset_from_parent;
@@ -316,18 +330,11 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 		auto endpoint = end.Point();
 		auto start = offset_from_parent.Point();
 
-		if(useQuat)
-		{
-			RenderCylinder(viewMatrix, start, endpoint, rotation, joint->joint_name);
-		} else 
-		{
-			RenderCylinder(viewMatrix, start, endpoint, jointRotationMatrix, joint->joint_name);
-		}
+		RenderCylinder(viewMatrix, start, endpoint, finalRotationMatrix, joint->joint_name);
 		
         // Recursively render the child joint
-        RenderJoint(viewMatrix, global, &child, scale, frame, endframe);
+        RenderJoint(viewMatrix, global, &child, scale, (int)correspondingFrame);
 	}
-
 } // RenderJoint()
 
 // render cylinder given the start position and the end position
