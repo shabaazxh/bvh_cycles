@@ -218,18 +218,30 @@ std::pair<double, int> BVHData::FindInterpFrames()
 	return {correspondingFrame, endframe};
 }
 
+// Negate the rotations in the rotations array
+void BVHData::NegateRotations()
+{
+	for(int i = 0; i < frame_count; i++)
+	{
+		for(int j = 0; j < all_joints.size(); j++)
+		{
+			boneRotations[i][j] = -boneRotations[i][j];
+		}
+	}
+}
+
 Quaternion BVHData::BlendPose(Pose& a, Pose& b, float time, float slerpAmount)
 {
 	// Animation A rotation
-	Quaternion a_rotX = Quaternion((*a.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); 
-	Quaternion a_rotY = Quaternion((*a.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
-	Quaternion a_rotZ = Quaternion((*a.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); 
+	Quaternion a_rotX = Quaternion((*a.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); a_rotX.Normalize();
+	Quaternion a_rotY = Quaternion((*a.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); a_rotY.Normalize();
+	Quaternion a_rotZ = Quaternion((*a.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); a_rotZ.Normalize();
 	Quaternion a_animARotQuat = (a_rotZ * a_rotY) * a_rotX;
 
 	// Animation B rotation
-	Quaternion b_rotX = Quaternion((*b.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); 
-	Quaternion b_rotY = Quaternion((*b.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
-	Quaternion b_rotZ = Quaternion((*b.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); 
+	Quaternion b_rotX = Quaternion((*b.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); b_rotX.Normalize();
+	Quaternion b_rotY = Quaternion((*b.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); b_rotY.Normalize();
+	Quaternion b_rotZ = Quaternion((*b.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); b_rotZ.Normalize();
 	Quaternion b_animARotQuat = (b_rotZ * b_rotY) * b_rotX;
 
 	// Determine the slerp amount using time, ensure its 0-1 range.
@@ -240,48 +252,66 @@ Quaternion BVHData::BlendPose(Pose& a, Pose& b, float time, float slerpAmount)
 	return blendedRot;
 }
 
-int amount = 0;
+Pose BVHData::CalculateNewPose(int frame, float time, float slerpAmount, int jointID)
+{
+		// Set up pose for animation A and B
+	Homogeneous4 translation = Homogeneous4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	Pose anim_pose_A = SampleAnimation(frame, jointID);
+	Pose anim_pose_B = SampleAnimation(frame, jointID);
+
+	// if there is a transition animation clip to transition to, set rotation to the animation clips rotation
+	// at this current frame 
+	if(!transitionTo.empty())
+	{
+		// Get the first animation clip and sample animation to get current joint pose transforms
+		anim_pose_B = transitionTo[transitionTo.size() - 1].SampleAnimation(frame, jointID);
+	}
+
+	// Blend the poses
+	Quaternion blendedPose = BlendPose(anim_pose_A, anim_pose_B, time, slerpAmount);
+
+	Pose ret;
+	ret.rot = blendedPose;
+
+	return ret;
+}
+
+Pose BVHData::SampleAnimation(int frame, int jointID)
+{
+	Pose ret;
+	ret.rotation = &boneRotations[frame][jointID];
+	return ret;
+}
+
 // render hierarchy for a given frame
 void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, double time)
-	{ // Render()
-	// columnMajorMatrix matrix;
-	//this->time = time * 0.1;
-	NegateRotations();
+{ // Render()
 	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame);
-	} // Render()
+} // Render()
+
 // render a single joint for a given frame
 void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame)
 	{ // RenderJoint()
 
+	// Time since animation started
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - timeStart).count();
 	double time_in_seconds = nanoseconds / 1e+9;
-	float user_defined_lerp = scale;
-	double amount_to_lerp = std::fmod(time_in_seconds, user_defined_lerp) / user_defined_lerp;
 
 	// Construct homog4 from offset from joint offset
 	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0], joint->joint_offset[1], joint->joint_offset[2], 1.0f);
 
-	// Set up pose for animation A and B
-	Homogeneous4 translation = Homogeneous4(0.0f, 0.0f, 0.0f, 1.0f);
-	Pose anim_pose_A = {&(boneRotations[frame][joint->id])};
-	Pose anim_pose_B = {&(boneRotations[frame][joint->id])};
+	// Determine updated pose for current joint
 
-	if(!transitionTo.empty())
-	{
-		anim_pose_B.rotation = &transitionTo[transitionTo.size() - 1].boneRotations[frame][joint->id];
-	}
+	auto f = (frame + 1) % frame_count;
+	Pose updatedPose = CalculateNewPose(f, time_in_seconds, scale, joint->id);
 
-	// Blend the poses
-	Quaternion blendedPose = BlendPose(anim_pose_A, anim_pose_B, time_in_seconds, scale);
+	Matrix4 finalRotationMatrix = updatedPose.rot.ToRotationMatrix();
 	
 	// translate using the offset
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
-	// set the global matrix to identity to begin with
 	auto global = Matrix4::Identity();
-
-	Matrix4 finalRotationMatrix = blendedPose.ToRotationMatrix();
-
 	global = parentMatrix * Offset * finalRotationMatrix;
 
 	// multiply offset by parent matrix to get it into the correct space to render
@@ -294,9 +324,7 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
         auto end = global * Homogeneous4(child.joint_offset[0], child.joint_offset[1], child.joint_offset[2], 1.0f);
 		auto endpoint = end.Point();
 		auto start = offset_from_parent.Point();
-
 		RenderCylinder(viewMatrix, start, endpoint, finalRotationMatrix, joint->joint_name);
-		
         // Recursively render the child joint
         RenderJoint(viewMatrix, global, &child, scale, frame);
 	}
@@ -438,6 +466,9 @@ void BVHData::loadAllData(std::vector<std::vector<Cartesian3>>& rotations, std::
 		float z = this->all_joints[i]->joint_offset[2];
 		translations.push_back(Cartesian3(x, y, z));
 		} // per joint
+
+	NegateRotations();
+
 	} // loadAllData()
 
 // load all rotation data into this class
