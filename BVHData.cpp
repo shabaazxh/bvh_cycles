@@ -218,104 +218,69 @@ std::pair<double, int> BVHData::FindInterpFrames()
 	return {correspondingFrame, endframe};
 }
 
+Quaternion BVHData::BlendPose(Pose& a, Pose& b, float time, float slerpAmount)
+{
+	// Animation A rotation
+	Quaternion a_rotX = Quaternion((*a.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); 
+	Quaternion a_rotY = Quaternion((*a.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
+	Quaternion a_rotZ = Quaternion((*a.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); 
+	Quaternion a_animARotQuat = (a_rotZ * a_rotY) * a_rotX;
+
+	// Animation B rotation
+	Quaternion b_rotX = Quaternion((*b.rotation).x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); 
+	Quaternion b_rotY = Quaternion((*b.rotation).y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
+	Quaternion b_rotZ = Quaternion((*b.rotation).z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); 
+	Quaternion b_animARotQuat = (b_rotZ * b_rotY) * b_rotX;
+
+	// Determine the slerp amount using time, ensure its 0-1 range.
+	double amount_to_lerp = std::fmod(time, slerpAmount) / slerpAmount;
+
+	Quaternion blendedRot = Slerp(a_animARotQuat, b_animARotQuat, amount_to_lerp);
+
+	return blendedRot;
+}
+
 int amount = 0;
 // render hierarchy for a given frame
 void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, double time)
 	{ // Render()
 	// columnMajorMatrix matrix;
-	this->time = time * 0.1;
+	//this->time = time * 0.1;
+	NegateRotations();
 	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame);
 	} // Render()
 // render a single joint for a given frame
 void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame)
 	{ // RenderJoint()
 
-	// Construct homog4 from offset from joint offset
-	Homogeneous4 offset_from_parent = Homogeneous4(
-		joint->joint_offset[0],
-		joint->joint_offset[1],
-		joint->joint_offset[2],
-		1.0f
-	);
-
-	// use BVH_CHANNEL's to get the position update in x,y,z
-	// Cartesian3 position = Cartesian3(0.0f, 0.0f, 0.0f);
-	// for(int i = 0; i < joint->joint_channel.size(); i++)
-    // {
-    //     const std::string& channel = joint->joint_channel[i];
-    //     float value = frames[frame][BVH_CHANNEL[channel]];
-	// 	// if the channel is for x position, set the x position
-    //     if(channel == "Xposition")
-    //     {
-	// 		position.x = value;
-    //     }
-	// 	// if the channel is for y position, set the y position
-    //     if(channel == "Yposition")
-    //     {
-    //        position.y = value;
-    //     }
-	// 	// if the channel is for z position, set the z position
-    //     if(channel == "Zposition")
-    //     {
-    //         position.z = value;
-    //     }
-
-    // }
-
-	// If this is the root join then apply the update position data
-	// if(joint->joint_name == "mixamorig1:Hips")
-	// {
-	// 	offset_from_parent.x = position.x;
-	// 	offset_from_parent.y = position.y;
-	// 	offset_from_parent.z = position.z;
-	// }
-	
-	std::pair<double, int> blendFrames = FindInterpFrames();
-
-	// Unpack the pair to get the corresponding frame and endframe
-	double correspondingFrame = (frame + 1) % frame_count;
-	int endframe = blendFrames.second;
-	// calculate lerp value (fractional portion of corresponding)
-	auto lerpValue = correspondingFrame - std::floor(correspondingFrame);
-
-	auto boneRotation = boneRotations[(int)correspondingFrame][joint->id];
-	//auto nextFrameRotations = boneRotations[endframe][joint->id];
-	// translate using the offset
-	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
-	// set the global matrix to identity to begin with
-	auto global = Matrix4::Identity();
-
-	// multiply matrices to get the final global matrix for the transformations
-	// global = parentMatrix * Offset * rotation;
-	Quaternion rotX = Quaternion(-boneRotation.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); rotX.Normalize();
-	Quaternion rotY = Quaternion(-boneRotation.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); rotY.Normalize();
-	Quaternion rotZ = Quaternion(-boneRotation.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); rotZ.Normalize();
-
-	Quaternion currentFrameRotationQuat = (rotZ * rotY) * rotX;
-	//std::cout << "t quat: " << currentFrameRotationQuat.w << ", " << currentFrameRotationQuat.x << ", " << currentFrameRotationQuat.y << ", " << currentFrameRotationQuat.z << std::endl;
-
-	// Quaternion nextFrameRotationQuat = (nrotZ * nrotY) * nrotX;
-	// Get the lerp value
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - timeStart).count();
 	double time_in_seconds = nanoseconds / 1e+9;
 	float user_defined_lerp = scale;
 	double amount_to_lerp = std::fmod(time_in_seconds, user_defined_lerp) / user_defined_lerp;
 
-	Matrix4 finalRotationMatrix = currentFrameRotationQuat.ToRotationMatrix();
+	// Construct homog4 from offset from joint offset
+	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0], joint->joint_offset[1], joint->joint_offset[2], 1.0f);
+
+	// Set up pose for animation A and B
+	Homogeneous4 translation = Homogeneous4(0.0f, 0.0f, 0.0f, 1.0f);
+	Pose anim_pose_A = {&(boneRotations[frame][joint->id])};
+	Pose anim_pose_B = {&(boneRotations[frame][joint->id])};
+
 	if(!transitionTo.empty())
 	{
-		auto frame_for_second_anim = (frame + 1) % transitionTo[transitionTo.size() - 1].frame_count;
-		std::cout << "Frame: " << (int)correspondingFrame << ", " << frame_for_second_anim << ", lerp: " << amount_to_lerp << std::endl;
-		auto nextFrameRotations = transitionTo[transitionTo.size() - 1].boneRotations[(int)correspondingFrame][joint->id];
-		Quaternion nrotX = Quaternion(-nextFrameRotations.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); nrotX.Normalize();
-		Quaternion nrotY = Quaternion(-nextFrameRotations.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); nrotY.Normalize();
-		Quaternion nrotZ = Quaternion(-nextFrameRotations.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); nrotZ.Normalize();
-		Quaternion nextFrameRotationQuat = (nrotZ * nrotY) * nrotX;
-		//std::cout << "first quat: " << nextFrameRotationQuat.w << ", " << nextFrameRotationQuat.x << ", " << nextFrameRotationQuat.y << ", " << nextFrameRotationQuat.z << std::endl;
-		auto blend = Slerp(nextFrameRotationQuat , currentFrameRotationQuat, amount_to_lerp);
-		finalRotationMatrix = blend.ToRotationMatrix();
+		anim_pose_B.rotation = &transitionTo[transitionTo.size() - 1].boneRotations[frame][joint->id];
 	}
+
+	// Blend the poses
+	Quaternion blendedPose = BlendPose(anim_pose_A, anim_pose_B, time_in_seconds, scale);
+	
+	// translate using the offset
+	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
+	// set the global matrix to identity to begin with
+	auto global = Matrix4::Identity();
+
+	Matrix4 finalRotationMatrix = blendedPose.ToRotationMatrix();
 
 	global = parentMatrix * Offset * finalRotationMatrix;
 
@@ -333,7 +298,7 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 		RenderCylinder(viewMatrix, start, endpoint, finalRotationMatrix, joint->joint_name);
 		
         // Recursively render the child joint
-        RenderJoint(viewMatrix, global, &child, scale, (int)correspondingFrame);
+        RenderJoint(viewMatrix, global, &child, scale, frame);
 	}
 } // RenderJoint()
 
