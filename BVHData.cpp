@@ -3,6 +3,7 @@
 // constructor
 BVHData::BVHData()
 	{ // constructor
+	state = 0;
 	} // constructor
 	
 // read data from bvh file
@@ -230,7 +231,7 @@ void BVHData::NegateRotations()
 	}
 }
 
-Quaternion BVHData::BlendPose(Cartesian3& a, Cartesian3& b, float time, float slerpAmount)
+Quaternion BVHData::BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount)
 {
 	// Animation A rotation
 	Quaternion a_rotX = Quaternion(a.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); a_rotX.Normalize();
@@ -245,7 +246,25 @@ Quaternion BVHData::BlendPose(Cartesian3& a, Cartesian3& b, float time, float sl
 	Quaternion b_animARotQuat = (b_rotZ * b_rotY) * b_rotX;
 
 	// Determine the slerp amount using time, ensure its 0-1 range.
-	double amount_to_lerp = std::fmod(time, slerpAmount) / slerpAmount;
+	double amount_to_lerp = time / slerpAmount;
+
+	if (amount_to_lerp > 1.0) {
+		amount_to_lerp = 1.0;
+		// if(!transitionTo.empty())
+		// {
+		// 	auto swap = transitionTo[transitionTo.size() -1];
+		// 	boneRotations = swap.boneRotations;
+		// 	frames = swap.frames;
+		// 	frame_time = swap.frame_time;
+		// 	frame_count = swap.frame_count;
+		// 	frames = swap.frames;
+		// 	// transitionTo.clear();
+		// }
+	}
+
+	std::cout << "Time: " << time << ", lerp: " << amount_to_lerp << std::endl;
+
+	//std::cout << "LERP: " << amount_to_lerp << std::endl;
 
 	Quaternion blendedRot = Slerp(a_animARotQuat, b_animARotQuat, amount_to_lerp);
 
@@ -265,7 +284,9 @@ Quaternion BVHData::CalculateNewPose(int frame, float time, float slerpAmount, i
 	if(!transitionTo.empty())
 	{
 		// Get the first animation clip and sample animation to get current joint pose transforms
-		anim_pose_B = transitionTo[transitionTo.size() - 1].SampleAnimation(frame, jointID);
+		BVHData transitionAnim = transitionTo[transitionTo.size() - 1];
+		auto sampleFrame = (frame + 1) % transitionAnim.frame_count;
+		anim_pose_B = transitionTo[transitionTo.size() - 1].SampleAnimation(sampleFrame, jointID);
 	}
 
 	// Blend the poses
@@ -283,6 +304,17 @@ Cartesian3 BVHData::SampleAnimation(int frame, int jointID)
 void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, double time)
 { // Render()
 	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame);
+
+	// if(!transitionTo.empty() && transitioned)
+	// {
+	// 	auto swap = transitionTo[transitionTo.size() -1];
+	// 	boneRotations = swap.boneRotations;
+	// 	frames = swap.frames;
+	// 	frame_time = swap.frame_time;
+	// 	frame_count = swap.frame_count;
+	// 	frames = swap.frames;
+	// }
+
 } // Render()
 
 // render a single joint for a given frame
@@ -294,17 +326,40 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - timeStart).count();
 	double time_in_seconds = nanoseconds / 1e+9;
 
-	// Construct homog4 from offset from joint offset
-	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0], joint->joint_offset[1], joint->joint_offset[2], 1.0f);
+	// std::cout << "Time: " << time_in_seconds << std::endl;
+
+	// use BVH_CHANNEL's to get the position update in x,y,z
+	Cartesian3 position = Cartesian3(0.0f, 0.0f, 0.0f);
+	for(int i = 0; i < joint->joint_channel.size(); i++)
+    {
+        const std::string& channel = joint->joint_channel[i];
+        float value = frames[frame][BVH_CHANNEL[channel]];
+		// if the channel is for x position, set the x position
+        if(channel == "Xposition")
+        {
+			position.x = value;
+        }
+		// if the channel is for y position, set the y position
+        if(channel == "Yposition")
+        {
+           position.y = value;
+        }
+		// if the channel is for z position, set the z position
+        if(channel == "Zposition")
+        {
+            position.z = value;
+        }
+	}
+
 
 	// Determine updated pose for current joint
 	auto f = (frame + 1) % frame_count;
 	Quaternion updatedPose = CalculateNewPose(f, time_in_seconds, scale, joint->id);
-
 	Matrix4 finalRotationMatrix = updatedPose.ToRotationMatrix();
 	
-	// translate using the offset
+	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0], joint->joint_offset[1], joint->joint_offset[2], 1.0f);
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
+	
 	auto global = Matrix4::Identity();
 	global = parentMatrix * Offset * finalRotationMatrix;
 

@@ -82,12 +82,9 @@ class BVHData
 	// a vector to store all bones' rotations for each frame
 	std::vector<std::vector<Cartesian3>> boneRotations;
 
-	Quaternion combinedQuaternion;
-
-	Quaternion GetRotation() const { return combinedQuaternion; }
-
-	//std::queue<std::pair<Quaternion, Matrix4>> transitionTo;
 	std::vector<BVHData> transitionTo;
+
+	int state;
 	
 private:
 	// id for each channel
@@ -101,7 +98,7 @@ private:
 			{"Zrotation", 5}
 		}; // BVH_CHANNEL
 
-public:
+public:	
 	// constructor
 	BVHData();
 
@@ -151,8 +148,10 @@ public:
 
 	void NegateRotations();
 
+	bool transitioned;
+
 private:	
-	Quaternion BlendPose(Cartesian3& a, Cartesian3& b, float time, float slerpAmount);
+	Quaternion BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount);
 	Cartesian3 SampleAnimation(int frame, int jointID);
 	Quaternion CalculateNewPose(int frame, float time, float slerpAmount, int jointID);
 };
