@@ -44,19 +44,10 @@ class Joint
 	// array of pointers
 
 
-struct Pose
-{
-	Cartesian3* rotation;
-	Quaternion rot;
-	//Homogeneous4* translation;
-};
-
 // bvh data class
 class BVHData
 	{ // class BVHData
 	public:
-
-
 
 	// the root joint of armature
 	Joint root;
@@ -158,13 +149,12 @@ public:
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> timeStart;
 
-	//std::queue<BVHData> transitionTo;
 	void NegateRotations();
 
 private:	
-	Quaternion BlendPose(Pose& a, Pose& b, float time, float slerpAmount);
-	Pose SampleAnimation(int frame, int jointID);
-	Pose CalculateNewPose(int frame, float time, float slerpAmount, int jointID);
+	Quaternion BlendPose(Cartesian3& a, Cartesian3& b, float time, float slerpAmount);
+	Cartesian3 SampleAnimation(int frame, int jointID);
+	Quaternion CalculateNewPose(int frame, float time, float slerpAmount, int jointID);
 };
 
 inline void drawMatrix(const Matrix4& matrix, const Matrix4& viewMatrix, Cartesian3 vs)
