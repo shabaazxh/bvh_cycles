@@ -26,6 +26,17 @@
 #include <queue>
 #include <chrono>
 
+
+enum CharacterState
+{
+	Running,
+	TurnLeft,
+	TurnRight,
+	Idle,
+	UNSET
+};
+
+
 // A class for each joint
 class Joint
 	{ // class Joint
@@ -84,7 +95,8 @@ class BVHData
 
 	std::vector<BVHData> transitionTo;
 
-	int state;
+	CharacterState m_AnimState;
+	CharacterState m_currentState;
 	
 private:
 	// id for each channel
@@ -148,12 +160,18 @@ public:
 
 	void NegateRotations();
 
-	bool transitioned;
+
+	void UpdateState(CharacterState state)
+	{
+		m_AnimState = state;
+	}
+
+	bool isTransitioningBack;
 
 private:	
-	Quaternion BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount);
+	std::pair<Quaternion, Cartesian3> BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount, const Cartesian3& position);
 	Cartesian3 SampleAnimation(int frame, int jointID);
-	Quaternion CalculateNewPose(int frame, float time, float slerpAmount, int jointID);
+	std::pair<Quaternion, Cartesian3> CalculateNewPose(int frame, float time, float slerpAmount, int jointID, const Cartesian3& position);
 };
 
 inline void drawMatrix(const Matrix4& matrix, const Matrix4& viewMatrix, Cartesian3 vs)

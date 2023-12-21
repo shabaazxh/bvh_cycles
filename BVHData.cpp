@@ -3,7 +3,9 @@
 // constructor
 BVHData::BVHData()
 	{ // constructor
-	state = 0;
+	isTransitioningBack = true;
+	m_AnimState = Running;
+	m_currentState = Running;
 	} // constructor
 	
 // read data from bvh file
@@ -231,7 +233,7 @@ void BVHData::NegateRotations()
 	}
 }
 
-Quaternion BVHData::BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount)
+std::pair<Quaternion, Cartesian3> BVHData::BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount, const Cartesian3& position)
 {
 	// Animation A rotation
 	Quaternion a_rotX = Quaternion(a.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); a_rotX.Normalize();
@@ -246,38 +248,64 @@ Quaternion BVHData::BlendPose(Cartesian3& a, Cartesian3& b, double time, float s
 	Quaternion b_animARotQuat = (b_rotZ * b_rotY) * b_rotX;
 
 	// Determine the slerp amount using time, ensure its 0-1 range.
-	double amount_to_lerp = time / slerpAmount;
+	// double amount_to_lerp = time / slerpAmount;
 
-	if (amount_to_lerp > 1.0) {
-		amount_to_lerp = 1.0;
-		// if(!transitionTo.empty())
-		// {
-		// 	auto swap = transitionTo[transitionTo.size() -1];
-		// 	boneRotations = swap.boneRotations;
-		// 	frames = swap.frames;
-		// 	frame_time = swap.frame_time;
-		// 	frame_count = swap.frame_count;
-		// 	frames = swap.frames;
-		// 	// transitionTo.clear();
-		// }
+	double amount_to_lerp = isTransitioningBack ? 1.0 - (time / slerpAmount) : time / slerpAmount;
+
+	// if (amount_to_lerp > 1.0) {
+	// 	amount_to_lerp = 1.0;
+	// 	isTransitioningBack = false;
+	// 	// if(!transitionTo.empty())
+	// 	// {
+	// 	// 	auto swap = transitionTo[transitionTo.size() -1];
+	// 	// 	boneRotations = swap.boneRotations;
+	// 	// 	frames = swap.frames;
+	// 	// 	frame_time = swap.frame_time;
+	// 	// 	frame_count = swap.frame_count;
+	// 	// 	frames = swap.frames;
+	// 	// 	// transitionTo.clear();
+	// 	// }
+	// }
+
+	if(isTransitioningBack)
+	{
+		if(amount_to_lerp <= 0.0)
+		{
+			amount_to_lerp = 0.0f;
+			m_AnimState = Running;
+			m_currentState = Running;
+			isTransitioningBack = false;
+			transitionTo.clear();
+		}
+	} else 
+	{
+		if(amount_to_lerp > 1.0)
+		{
+			amount_to_lerp = 1.0f;
+		}
 	}
 
-	std::cout << "Time: " << time << ", lerp: " << amount_to_lerp << std::endl;
+	///std::cout << "Time: " << time << ", lerp: " << amount_to_lerp << std::endl;
 
 	//std::cout << "LERP: " << amount_to_lerp << std::endl;
 
 	Quaternion blendedRot = Slerp(a_animARotQuat, b_animARotQuat, amount_to_lerp);
 
-	return blendedRot;
+	Cartesian3 blendedPos = Lerp(position, position, 0.0f);
+
+	return {blendedRot, blendedPos};
 }
 
-Quaternion BVHData::CalculateNewPose(int frame, float time, float slerpAmount, int jointID)
+std::pair<Quaternion, Cartesian3> BVHData::CalculateNewPose(int frame, float time, float slerpAmount, int jointID, const Cartesian3& position)
 {
 	// Set up pose for animation A and B
 	Homogeneous4 translation = Homogeneous4(0.0f, 0.0f, 0.0f, 1.0f);
 
-	Cartesian3 anim_pose_A = SampleAnimation(frame, jointID);
-	Cartesian3 anim_pose_B = SampleAnimation(frame, jointID);
+
+	auto f = (frame + 1) % frame_count;
+
+	Cartesian3 anim_pose_A = SampleAnimation(f, jointID);
+	Cartesian3 anim_pose_B = SampleAnimation(f, jointID);
 
 	// if there is a transition animation clip to transition to, set rotation to the animation clips rotation
 	// at this current frame 
@@ -286,11 +314,22 @@ Quaternion BVHData::CalculateNewPose(int frame, float time, float slerpAmount, i
 		// Get the first animation clip and sample animation to get current joint pose transforms
 		BVHData transitionAnim = transitionTo[transitionTo.size() - 1];
 		auto sampleFrame = (frame + 1) % transitionAnim.frame_count;
+		// std::cout << "Sample frame: " << sampleFrame << "joint id" << transitionAnim.frame_count << std::endl;
 		anim_pose_B = transitionTo[transitionTo.size() - 1].SampleAnimation(sampleFrame, jointID);
+
+		if(m_AnimState == TurnLeft || m_AnimState == TurnRight)
+		{
+			if(sampleFrame == (transitionAnim.frame_count - 1) && jointID == 64)
+			{
+				// isTransitioningBack = true;
+				// state = 0;
+				// m_AnimState = Running;
+			}
+		}
 	}
 
 	// Blend the poses
-	Quaternion blendedPose = BlendPose(anim_pose_A, anim_pose_B, time, slerpAmount);
+	std::pair<Quaternion, Cartesian3> blendedPose = BlendPose(anim_pose_A, anim_pose_B, time, slerpAmount, position);
 
 	return blendedPose;
 }
@@ -326,14 +365,15 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 	double nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(currentTime - timeStart).count();
 	double time_in_seconds = nanoseconds / 1e+9;
 
-	// std::cout << "Time: " << time_in_seconds << std::endl;
+
+	auto f = (frame + 1) % frame_count;
 
 	// use BVH_CHANNEL's to get the position update in x,y,z
 	Cartesian3 position = Cartesian3(0.0f, 0.0f, 0.0f);
 	for(int i = 0; i < joint->joint_channel.size(); i++)
     {
         const std::string& channel = joint->joint_channel[i];
-        float value = frames[frame][BVH_CHANNEL[channel]];
+        float value = frames[f][BVH_CHANNEL[channel]];
 		// if the channel is for x position, set the x position
         if(channel == "Xposition")
         {
@@ -351,13 +391,29 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
         }
 	}
 
+	// if(position.x != 0)
+	// {
+	// 	std::cout << "Position: " << position << std::endl;
+	// }
+	
 
 	// Determine updated pose for current joint
-	auto f = (frame + 1) % frame_count;
-	Quaternion updatedPose = CalculateNewPose(f, time_in_seconds, scale, joint->id);
-	Matrix4 finalRotationMatrix = updatedPose.ToRotationMatrix();
 	
+	std::pair<Quaternion, Cartesian3> updatedPose = CalculateNewPose(frame, time_in_seconds, scale, joint->id, position);
+	Matrix4 finalRotationMatrix = updatedPose.first.ToRotationMatrix();
+
 	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0], joint->joint_offset[1], joint->joint_offset[2], 1.0f);
+	
+	// if(joint->joint_name == "mixamorig1:Hips")
+	// {
+	// 	offset_from_parent.x = updatedPose.second.x;
+	// 	offset_from_parent.x = updatedPose.second.y;
+	// 	offset_from_parent.x = updatedPose.second.z;
+	// }
+
+	//std::cout << "Position: " << offset_from_parent.Point() << std::endl;
+	
+	
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
 	
 	auto global = Matrix4::Identity();

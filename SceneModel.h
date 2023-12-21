@@ -23,13 +23,6 @@
 
 // Define enum to set the animation state of the player
 // we can then use this to switch to the correct animation depending on the state
-enum CharacterState
-{
-	Running,
-	TurnLeft,
-	TurnRight,
-	Idle
-};
 
 class SceneModel										
 	{ // class SceneModel
@@ -109,7 +102,7 @@ class SceneModel
 	Cartesian3 m_controllerLessRunCyclePosition;
 
 	// current animation state of the player/character
-	CharacterState m_AnimState;
+	
 
 	}; // class SceneModel
 

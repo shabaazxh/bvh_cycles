@@ -61,7 +61,6 @@ SceneModel::SceneModel()
 	m_controllerLessRunCyclePosition = Cartesian3(30.0f, 0.0f, -10.0f);
 
 	// Set the current animation state of the player to be Idle to begin with
-	m_AnimState = Running;
 	} // constructor
 
 
@@ -176,46 +175,52 @@ void SceneModel::Render()
 	// Set the player matrix for movement in the world. This will allow the player to move and look
 	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_characterPosition) * m_playerLookMatrix * Matrix4::Scale(scale, scale, scale) * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
 	playerController.Render(playerControllerMatrix, 0.9f, frameNumber, duration);
-
+	// std::cout << "isTransitionBack: " << playerController.isTransitioningBack  << std::endl;
 	// Switch the animation being rendered based on the current state of the player
-	switch (m_AnimState)
+
+	std::cout << "Animation state: " << playerController.m_currentState << std::endl;
+
+	switch (playerController.m_AnimState)
 	{
 		// If the player is running, render the running animation
 		case Running:
-			if(playerController.state != 0)
+			if(playerController.m_currentState != Running)
 			{
 				playerController.timeStart = std::chrono::high_resolution_clock::now();
-				playerController.transitionTo.clear();
-				playerController.transitionTo.push_back(runCycle);
-				playerController.state = 0;
+				playerController.isTransitioningBack = true;
+				playerController.m_currentState = Running;
 			}
-			
 			break;
 		// If the player is turning left, render the turning left animation
 		case TurnLeft:
-			if(playerController.state != 2)
+			if(playerController.m_currentState != TurnLeft)
 			{
 				playerController.timeStart = std::chrono::high_resolution_clock::now();
 				playerController.transitionTo.push_back(veerLeftCycle);
-				playerController.state = 2;
+				playerController.isTransitioningBack = false;
+				playerController.m_currentState = TurnLeft;
 			}
 			break;
 
 		case TurnRight:
-			if(playerController.state != 3)
+			if(playerController.m_currentState != TurnRight)
 			{
 				playerController.timeStart = std::chrono::high_resolution_clock::now();
 				playerController.transitionTo.push_back(veerRightCycle);
-				playerController.state = 3;
+				playerController.isTransitioningBack = false;
+				playerController.m_currentState = TurnRight;
 			}
 			break;
 			
 		case Idle:
-			if(playerController.state != 1)
+			std::cout << "Idle triggered: " << std::endl;
+			if(playerController.m_currentState != Idle)
 			{
+				//std::cout << "Should transition: " << std::endl;
 				playerController.timeStart = std::chrono::high_resolution_clock::now();
 				playerController.transitionTo.push_back(restPose);
-				playerController.state = 1;
+				playerController.isTransitioningBack = false;
+				playerController.m_currentState = Idle;
 			}
 			break;
 
@@ -297,26 +302,26 @@ void SceneModel::EventCharacterTurnLeft()
 	{ // EventCharacterTurnLeft()
 		// To get the player to look left, we set the direction to be left and update the character position
 		//m_characterDirection = Cartesian3(-1.0f, 0.0f, 0.0f);
-		auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
-		m_characterPosition = m_characterPosition + forward * playerSpeed;
-		m_AnimState = TurnLeft; // set the animation state of the player
+		// auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
+		// m_characterPosition = m_characterPosition + forward * playerSpeed;
+		playerController.UpdateState(TurnLeft); // set the animation state of the player
 	} // EventCharacterTurnLeft()
 	
 void SceneModel::EventCharacterTurnRight()
 	{ // EventCharacterTurnRight()
 		// To get the player to look right, we set the direction to be left and update the character position
 		//m_characterDirection = Cartesian3(1.0f, 0.0f, 0.0f);
-		auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
-		m_characterPosition = m_characterPosition + forward * playerSpeed;
-		m_AnimState = TurnRight; // set the new animation state of the player
+		// auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
+		// m_characterPosition = m_characterPosition + forward * playerSpeed;
+		playerController.UpdateState(TurnRight); // set the new animation state of the player
 	} // EventCharacterTurnRight()
 	
 void SceneModel::EventCharacterForward()
 	{ // EventCharacterForward()
 		// Get the player to look forward and set the animation state to running
-		auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
-		m_characterPosition = m_characterPosition + forward * playerSpeed;
-		m_AnimState = Running; // set the animation state of the player
+		// auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
+		// m_characterPosition = m_characterPosition + forward * playerSpeed;
+		playerController.m_AnimState = Running; // set the animation state of the player
 	} // EventCharacterForward()
 	
 void SceneModel::EventCharacterBackward()
@@ -324,7 +329,7 @@ void SceneModel::EventCharacterBackward()
 		// Backwards is actually switching the character to idle mode
 		std::cout << "Pressing backwards " << std::endl;
 		//m_characterDirection = Cartesian3(0.0f, 0.0f, 1.0f);
-		m_AnimState = Idle; // set the animation state
+		playerController.m_AnimState = Idle;
 	} // EventCharacterBackward()
 
 // reset character to original position: p
@@ -333,5 +338,5 @@ void SceneModel::EventCharacterReset()
 	this->m_characterPosition = Cartesian3(0, 0, 0);
 	this->m_playerLookMatrix = Matrix4::Identity(); 
 	m_characterDirection = Cartesian3(0.0f, 0.0f, 1.0f); // reset the direction of the character 
-	m_AnimState = Idle; // set the animation to be idle
+	playerController.m_AnimState = Running; // set the animation to be idle
 	} // EventCharacterReset()
