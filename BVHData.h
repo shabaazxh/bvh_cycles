@@ -97,6 +97,8 @@ class BVHData
 
 	CharacterState m_AnimState;
 	CharacterState m_currentState;
+
+	Cartesian3 perframepos;
 	
 private:
 	// id for each channel
@@ -115,10 +117,10 @@ public:
 	BVHData();
 
 	// render bvh animation by given a sequence of frames data
-	void Render(Matrix4& viewMatrix, float scale, int frame, double time);
+	void Render(Matrix4& viewMatrix, float scale, int frame, double time, Cartesian3& playerpos, Cartesian3& dir, Matrix4& playerTransform);
 
 	// render a single joint by given frame id
-	void RenderJoint(Matrix4& viewMatrix, Matrix4 HierarchicalMatrix, Joint* joint, float scale, int frame);
+	void RenderJoint(Matrix4& viewMatrix, Matrix4 HierarchicalMatrix, Joint* joint, float scale, int frame, Cartesian3& playerpos, Cartesian3& dir, Matrix4& playerTransform);
 
 	// render cylinder given the start position and the end position
 	void RenderCylinder(Matrix4& viewMatrix, Cartesian3 start, Cartesian3 end, const Matrix4& a, const std::string& name);
@@ -156,23 +158,23 @@ public:
 
 	std::pair<double, int> FindInterpFrames();
 
+	Cartesian3 SamplePosition(int frame, int jointID);
+
 	std::chrono::time_point<std::chrono::high_resolution_clock> timeStart;
 
 	void NegateRotations();
 
-
-	void UpdateState(CharacterState state)
-	{
-		m_AnimState = state;
-	}
-
 	bool isTransitioningBack;
 
+	Cartesian3 rootPosition;
+	Matrix4 glob;
+
 private:	
-	std::pair<Quaternion, Cartesian3> BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount, const Cartesian3& position);
+	std::pair<Quaternion, Cartesian3> BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount, Cartesian3& currentPos, Cartesian3& other);
 	Cartesian3 SampleAnimation(int frame, int jointID);
-	std::pair<Quaternion, Cartesian3> CalculateNewPose(int frame, float time, float slerpAmount, int jointID, const Cartesian3& position);
+	std::pair<Quaternion, Cartesian3> CalculateNewPose(int frame, float time, float slerpAmount, int jointID);
 };
+
 
 inline void drawMatrix(const Matrix4& matrix, const Matrix4& viewMatrix, Cartesian3 vs)
 {
