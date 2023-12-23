@@ -91,8 +91,8 @@ class SceneModel
 	void EventSwitchMode();
 
 	// position and direction of the player/character 
-	Cartesian3 m_characterPosition;
-	Cartesian3 m_characterDirection;
+	Cartesian3 m_playerposition;
+	Cartesian3 m_playerdirection;
 	// look matrix for the player to have him move in the direction it's facing
 	Matrix4 m_playerLookMatrix;
 	// scene camera

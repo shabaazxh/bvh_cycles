@@ -165,10 +165,6 @@ public:
 	void NegateRotations();
 
 	bool isTransitioningBack;
-
-	Cartesian3 rootPosition;
-	Matrix4 glob;
-
 private:	
 	std::pair<Quaternion, Cartesian3> BlendPose(Cartesian3& a, Cartesian3& b, double time, float slerpAmount, Cartesian3& currentPos, Cartesian3& other);
 	Cartesian3 SampleAnimation(int frame, int jointID);

@@ -276,10 +276,7 @@ std::pair<Quaternion, Cartesian3> BVHData::BlendPose(Cartesian3& a, Cartesian3& 
 std::pair<Quaternion, Cartesian3> BVHData::CalculateNewPose(int frame, float time, float slerpAmount, int jointID)
 {
 	// Set up pose for animation A and B
-	Homogeneous4 translation = Homogeneous4(0.0f, 0.0f, 0.0f, 1.0f);
-
 	auto f = (frame + 1) % frame_count;
-
 	Cartesian3 anim_pose_A = SampleAnimation(f, jointID);
 	Cartesian3 anim_pose_B = SampleAnimation(f, jointID);
 	// if there is a transition animation clip to transition to, set rotation to the animation clips rotation
@@ -297,7 +294,9 @@ std::pair<Quaternion, Cartesian3> BVHData::CalculateNewPose(int frame, float tim
 		{
 			if(sampleFrame == (transitionAnim.frame_count - 1) && jointID == 64)
 			{
-				isTransitioningBack = true;
+				//isFinished = true;
+				//isTransitioningBack = true;
+				//transitionTo.clear(); // this was not here in the original one
 			}
 		}
 	}
@@ -348,6 +347,7 @@ void BVHData::Render(Matrix4& viewMatrix, float scale, int frame, double time,  
 	RenderJoint(viewMatrix, Matrix4::Identity(), &this->root, scale, frame, playerpos, dir, playerTransform);
 } // Render()
 
+static int cycles = 0;
 // render a single joint for a given frame
 void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* joint, float scale, int frame, Cartesian3& playerpos, Cartesian3& dir, Matrix4& playerTransform)
 	{ // RenderJoint()
@@ -365,46 +365,41 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 
 	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0] * scale, joint->joint_offset[1] * scale, joint->joint_offset[2] * scale, 1.0f);
 
-	std::cout << "Player position: " << updatedPose.second << std::endl;
+	// std::cout << "Player position: " << playerpos << std::endl;
+	// std::cout << "Updated pose: " << updatedPose.second << std::endl;
 
-	Cartesian3 currentPosition = SampleAnimation(f, joint->id);
-	if(joint->joint_name == "mixamorig1:Hips")
-	{
-		// offset_from_parent.x = updatedPose.second.x;
-		// // offset_from_parent.y = updatedPose.second.y;
-		// offset_from_parent.z = updatedPose.second.z;
+    if(joint->joint_name == "mixamorig1:Hips")
+    {
+        // offset_from_parent.x = playerpos.x + updatedPose.second.x;
+        // offset_from_parent.z = playerpos.z + updatedPose.second.z;
 
-		// when turn animation completes, its removed to playerpos becomes previous animations transform which is at 0,29,0		
+        // when turn animation completes, its removed to playerpos becomes previous animations transform which is at 0,29,0     
+        auto previous = playerpos;
+        if(m_AnimState == TurnLeft || m_AnimState == TurnRight)
+        {
+            if(!transitionTo.empty())
+            {
+                auto BVH = transitionTo[transitionTo.size() - 1];
+                if((BVH.frame_count - 1) == ((frame + 1) % BVH.frame_count))
+                {
+                    auto a = BVH.SampleAnimation((frame + 1) % BVH.frame_count, joint->id);
+                    Quaternion a_rotY = Quaternion(a.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
+        
+                    //std::cout << "MOVE BACK: " << playerpos <<  " Rot: " << a.y << std::endl;
+                    
+                    //playerpos = Cartesian3(0,0,0);
+                    //std::cout << "player pos: " << playerpos << std::endl; 
+                    dir.Rotate(a.y, Cartesian3(0.0f, 1.0f, 0.0f));
+                    dir = dir.unit();   
+                    // playerpos = offset_from_parent.Point();
+                    // std::cout << "direction: " << dir << std::endl;                  
+                    
+                }
+            }
+        }
+        
+    }
 
-		if(m_AnimState == TurnLeft || m_AnimState == TurnRight)
-		{
-			if(!transitionTo.empty())
-			{
-				auto BVH = transitionTo[transitionTo.size() - 1];
-
-				if((BVH.frame_count - 1) == ((frame + 1) % BVH.frame_count))
-				{
-					auto a = BVH.SampleAnimation((frame + 1) % BVH.frame_count, joint->id);
-
-					// Quaternion a_rotX = Quaternion(a.x, Cartesian3(1.0f, 0.0f, 0.0f).unit()); 
-					// Quaternion a_rotY = Quaternion(a.y, Cartesian3(0.0f, 1.0f, 0.0f).unit()); 
-					// Quaternion a_rotZ = Quaternion(a.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); 
-					// Quaternion a_animARotQuat = (a_rotZ * a_rotY) * a_rotX;
-
-
-					// Matrix4 translation = Matrix4::Translate(offset_from_parent.Point());
-					// Matrix4 rotation = a_animARotQuat.ToRotationMatrix();
-
-					//playerpos = (translation * Homogeneous4(playerpos.x, playerpos.y, playerpos.z, 1.0f)).Point(); // translation 
-					Homogeneous4 d = Homogeneous4(dir.x, dir.y, dir.z, 1.0f);
-
-					dir = (finalRotationMatrix * d).Point();
-					dir = dir.unit();
-				}
-			}
-		}
-		
-	}
 
 	auto Offset = Matrix4::Translate({offset_from_parent.x, offset_from_parent.y, offset_from_parent.z});
 
@@ -440,7 +435,7 @@ void BVHData::RenderCylinder(Matrix4& viewMatrix, Cartesian3 start, Cartesian3 e
 
 	// Normalize the difference vector to get the direction
     Cartesian3 dir = diff.unit();
-	const GLfloat boneCol[4] = {1.0, 1.0, 1.0, 1.0};
+	const GLfloat boneCol[4] = {0.0, 0.0, 0.0, 1.0};
 
 	// Render skeleton using lines
 	if(false)
