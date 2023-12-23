@@ -51,7 +51,6 @@ SceneModel::SceneModel()
 	frameNumber = 0;
 
 	// Set the character start position and direction
-	//-130 99.75 302.6 -519.0f, 0.0f, 1210.0f
 	m_playerposition = Cartesian3(0.0f, 0.0f, 0.0f);
 	m_playerdirection = Cartesian3(0.0f, 0.0f, 1.0f);
 	//m_characterDirection.Rotate(135.92f, Cartesian3(0.0f, 1.0f, 0.0f));
@@ -148,13 +147,13 @@ void SceneModel::Render()
 		}
 	}
 
-	// std::cout << "Camera Rotation Matrix: " << std::endl;
-	// for (int i = 0; i < 4; ++i) {
-	// 	for (int j = 0; j < 4; ++j) {
-	// 		std::cout << std::setw(10) << cameraRotationMatrix[j][i] << " ";
-	// 	}
-	// 	std::cout << std::endl;
-	// }
+	std::cout << "Camera Rotation Matrix: " << std::endl;
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			std::cout << std::setw(10) << cameraRotationMatrix[j][i] << " ";
+		}
+		std::cout << std::endl;
+	}
 
 	// compute the light position
 	Homogeneous4 lightDirection = world2OpenGLMatrix * cameraRotationMatrix.transpose() * sunDirection;
@@ -201,7 +200,6 @@ void SceneModel::Render()
 				playerController.timeStart = std::chrono::high_resolution_clock::now(); // provide current time when animation started
 				playerController.isTransitioningBack = true; // running is base state, tranitioning back will just go from the current animation state to the base animaiton
 				playerController.m_currentState = Running; // update the current animation state
-				playerController.isFinished = true;
 			}
 			break;
 		// If the player is turning left, push the turning left animation to transition to it
@@ -219,16 +217,12 @@ void SceneModel::Render()
 		// If the player is turning right, push the turning left animation to transition to it
 		// and set the relevant states
 		case TurnRight:
-			if(playerController.isFinished)
+			if(playerController.m_currentState != TurnRight)
 			{
-				m_playerdirection.Rotate(13.0f, Cartesian3(0.0f, 1.0f, 0.0f));
-				//std::cout << "CALLING: " << std::endl;
-				//m_playerdirection.Rotate(3.0f, Cartesian3(0.0f, 1.0f, 0.0f));
 				// set the current time so we know when the current animation started playing, this is needed for blending
 				playerController.timeStart = std::chrono::high_resolution_clock::now(); // provide current time when animation started
 				playerController.transitionTo.push_back(veerRightCycle); // provide the relevant animation to transition to
 				playerController.isTransitioningBack = false; // set this to false since we will moving out of the run state
-				playerController.isFinished = false;
 				playerController.m_currentState = TurnRight; // set the current state to the new state to prevent pushing more of the same anim
 			}
 			break;

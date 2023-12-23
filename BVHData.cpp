@@ -276,10 +276,8 @@ std::pair<Quaternion, Cartesian3> BVHData::CalculateNewPose(int frame, float tim
 		{
 			if(sampleFrame == (transitionAnim.frame_count - 1) && jointID == 64)
 			{
-				//isTransitioningBack = true;
-				// transitionTo.clear(); // this was not here in the original one
-
-				isFinished = true;
+				// isTransitioningBack = true;
+				//transitionTo.clear();
 			}
 		}
 	}
@@ -352,7 +350,6 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
     {
         // offset_from_parent.x = playerpos.x + updatedPose.second.x;
         // offset_from_parent.z = playerpos.z + updatedPose.second.z;
-
         // when turn animation completes, its removed to playerpos becomes previous animations transform which is at 0,29,0     
         auto previous = playerpos;
         if(m_AnimState == TurnLeft || m_AnimState == TurnRight)
@@ -373,7 +370,6 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
                     dir = dir.unit();   
                     // playerpos = offset_from_parent.Point();
                     // std::cout << "direction: " << dir << std::endl;                  
-                    
                 }
             }
         }
