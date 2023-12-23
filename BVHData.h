@@ -156,13 +156,15 @@ public:
 	// check whether the given string is a number
 	bool isNumeric(const std::string&);
 
-	std::pair<double, int> FindInterpFrames();
-
 	Cartesian3 SamplePosition(int frame, int jointID);
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> timeStart;
 
 	void NegateRotations();
+
+	float previousRotation;
+
+	bool isFinished = true;
 
 	bool isTransitioningBack;
 private:	

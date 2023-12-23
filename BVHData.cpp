@@ -202,25 +202,6 @@ void BVHData::ReadMotion(std::ifstream& inFile)
 		} // more data
 	} // ReadMotion()
 
-
-std::pair<double, int> BVHData::FindInterpFrames()
-{
-	double totalTimeInSeconds = frame_count * frame_time; // 0.708339
-
-	// how far into the cycle are we? example values: 5.5 = 5 cycles .5 is 50% into current cycle
-	auto currentCycleAmount = time / totalTimeInSeconds; // 15.5513108836
-
-	// floor it to get the large integer parts
-	auto floor = std::floor(currentCycleAmount);
-	// subtract the integer part from the decimal, so we keep only decimal part
-	currentCycleAmount = currentCycleAmount - floor; // how much in the current cycle are we? s value
-
-	double correspondingFrame = frame_count * currentCycleAmount; // current frame
-	double endframe = ((int)correspondingFrame + 1) % frame_count; // ending frame
-
-	return {correspondingFrame, endframe};
-}
-
 // Negate the rotations in the rotations array
 void BVHData::NegateRotations()
 {
@@ -247,6 +228,7 @@ std::pair<Quaternion, Cartesian3> BVHData::BlendPose(Cartesian3& a, Cartesian3& 
 	Quaternion b_rotZ = Quaternion(b.z, Cartesian3(0.0f, 0.0f, 1.0f).unit()); b_rotZ.Normalize();
 	Quaternion b_animARotQuat = (b_rotZ * b_rotY) * b_rotX;
 
+	// Check how we're going to lerp
 	double amount_to_lerp = isTransitioningBack ? 1.0 - (time / slerpAmount) : time / slerpAmount;
 
 	if(isTransitioningBack)
@@ -294,9 +276,10 @@ std::pair<Quaternion, Cartesian3> BVHData::CalculateNewPose(int frame, float tim
 		{
 			if(sampleFrame == (transitionAnim.frame_count - 1) && jointID == 64)
 			{
-				//isFinished = true;
 				//isTransitioningBack = true;
-				//transitionTo.clear(); // this was not here in the original one
+				// transitionTo.clear(); // this was not here in the original one
+
+				isFinished = true;
 			}
 		}
 	}
@@ -365,9 +348,6 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
 
 	Homogeneous4 offset_from_parent = Homogeneous4(joint->joint_offset[0] * scale, joint->joint_offset[1] * scale, joint->joint_offset[2] * scale, 1.0f);
 
-	// std::cout << "Player position: " << playerpos << std::endl;
-	// std::cout << "Updated pose: " << updatedPose.second << std::endl;
-
     if(joint->joint_name == "mixamorig1:Hips")
     {
         // offset_from_parent.x = playerpos.x + updatedPose.second.x;
@@ -387,8 +367,8 @@ void BVHData::RenderJoint(Matrix4& viewMatrix, Matrix4 parentMatrix, Joint* join
         
                     //std::cout << "MOVE BACK: " << playerpos <<  " Rot: " << a.y << std::endl;
                     
-                    //playerpos = Cartesian3(0,0,0);
-                    //std::cout << "player pos: " << playerpos << std::endl; 
+                    // playerpos = Cartesian3(0,0,0);
+                    std::cout << "player pos: " << playerpos << std::endl; 
                     dir.Rotate(a.y, Cartesian3(0.0f, 1.0f, 0.0f));
                     dir = dir.unit();   
                     // playerpos = offset_from_parent.Point();

@@ -11,7 +11,7 @@ const char* motionBvhRun		= "./models/fast_run.bvh";
 const char* motionBvhveerLeft	= "./models/veer_left.bvh";
 const char* motionBvhveerRight	= "./models/veer_right.bvh";
 const float cameraSpeed = 300.0; 
-const float playerSpeed = 4.2f; // Player speed for movement
+const float playerSpeed = 2.0f; // Player speed for movement 10.2
 
 const Homogeneous4 sunDirection(0.5, -0.5, 0.3, 1.0);
 const GLfloat groundColour[4] = { 0.3, 0.5, 0.2, 1.0 };
@@ -42,7 +42,7 @@ SceneModel::SceneModel()
 	CameraRotationMatrix = Matrix4::RotateX(90.0) * Matrix4::RotateZ(30.0);
 
 	// Set the camera position, direction and up
-	m_camera = new Camera(Cartesian3(-5.0f, 15.0f, 10.0f), Cartesian3(0.0f, 0.0f, 1.0f), Cartesian3(0.0f, 1.0f, 0.0f));
+	m_camera = new Camera(Cartesian3(-5.0f, 15.0f, 30.0f), Cartesian3(0.0f, 0.0f, 1.0f), Cartesian3(0.0f, 1.0f, 0.0f));
 
 	// initialize the character's position and rotation
 	EventCharacterReset();
@@ -52,12 +52,12 @@ SceneModel::SceneModel()
 
 	// Set the character start position and direction
 	//-130 99.75 302.6 -519.0f, 0.0f, 1210.0f
-	m_characterPosition = Cartesian3(0.0f, 0.0f, 0.0f);
-	m_characterDirection = Cartesian3(0.0f, 0.0f, 1.0f);
+	m_playerposition = Cartesian3(0.0f, 0.0f, 0.0f);
+	m_playerdirection = Cartesian3(0.0f, 0.0f, 1.0f);
 	//m_characterDirection.Rotate(135.92f, Cartesian3(0.0f, 1.0f, 0.0f));
 
 	// Construct the player look marix using current character position and direction
-	m_playerLookMatrix = Matrix4::Look(m_characterPosition, m_characterPosition + m_characterDirection, Cartesian3(0.0f, 1.0f, 0.0f));
+	m_playerLookMatrix = Matrix4::Look(m_playerposition, m_playerposition + m_playerdirection, Cartesian3(0.0f, 1.0f, 0.0f));
 
 	// Set the starting position of the character which is constantly running using the run animation
 	m_controllerLessRunCyclePosition = Cartesian3(30.0f, 0.0f, -10.0f);
@@ -78,12 +78,12 @@ void SceneModel::Update()
 	{ // Update()
 	
 	// get the height of the floor at the point the character is currently at
-	auto playerground = groundModel.getHeight(m_characterPosition.x, m_characterPosition.z);
-	m_characterPosition.y = playerground; // set y to the floor height for the character to make it run on the terrain instead of through
+	//auto playerground = groundModel.getHeight(m_playerposition.x, m_playerposition.z);
+	m_playerposition.y = 0.0f; // set y to the floor height for the character to make it run on the terrain instead of through
 
 	// Construct and update the look matrix for the character so it orients and moves correctly in the scene
 	// when the user makes changes
-	m_playerLookMatrix = Matrix4::Look(m_characterPosition, m_characterPosition + m_characterDirection, Cartesian3(0.0f, 1.0f, 0.0f));
+	m_playerLookMatrix = Matrix4::Look(m_playerposition, m_playerposition + m_playerdirection, Cartesian3(0.0f, 1.0f, 0.0f));
 
 	// Get the height of the terrain for the position of the run cycle animation loop character
 	auto runCycleFloor = groundModel.getHeight(m_controllerLessRunCyclePosition.x, m_controllerLessRunCyclePosition.z);
@@ -103,7 +103,7 @@ void SceneModel::Update()
 	{
 		// get the forward directon of the player and use it to move hte player in the forward direction 
 		auto forward = Cartesian3(m_playerLookMatrix[0][2], m_playerLookMatrix[1][2], m_playerLookMatrix[2][2]);
-		m_characterPosition = m_characterPosition + forward * playerSpeed;
+		m_playerposition = m_playerposition + forward * playerSpeed;
 	}
 
 	// Update the camera 
@@ -148,13 +148,13 @@ void SceneModel::Render()
 		}
 	}
 
-	std::cout << "Camera Rotation Matrix: " << std::endl;
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			std::cout << std::setw(10) << cameraRotationMatrix[j][i] << " ";
-		}
-		std::cout << std::endl;
-	}
+	// std::cout << "Camera Rotation Matrix: " << std::endl;
+	// for (int i = 0; i < 4; ++i) {
+	// 	for (int j = 0; j < 4; ++j) {
+	// 		std::cout << std::setw(10) << cameraRotationMatrix[j][i] << " ";
+	// 	}
+	// 	std::cout << std::endl;
+	// }
 
 	// compute the light position
 	Homogeneous4 lightDirection = world2OpenGLMatrix * cameraRotationMatrix.transpose() * sunDirection;
@@ -188,8 +188,8 @@ void SceneModel::Render()
 	// Player controller
 	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, playerColour);
 	// Set the player matrix for movement in the world. This will allow the player to move and look
-	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_characterPosition) * m_playerLookMatrix * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
-	playerController.Render(playerControllerMatrix, 1.0f, frameNumber, duration, m_characterPosition,m_characterDirection, m_playerLookMatrix);
+	auto playerControllerMatrix = m_camera->GetViewMatrix() * Matrix4::Translate(m_playerposition) * m_playerLookMatrix * world2OpenGLMatrix * Matrix4::RotateX(-90.0f);
+	playerController.Render(playerControllerMatrix, 1.0f, frameNumber, duration, m_playerposition, m_playerdirection, m_playerLookMatrix);
 
 	// Switch the animation being rendered based on the current state of the player
 	switch (playerController.m_AnimState)
@@ -201,6 +201,7 @@ void SceneModel::Render()
 				playerController.timeStart = std::chrono::high_resolution_clock::now(); // provide current time when animation started
 				playerController.isTransitioningBack = true; // running is base state, tranitioning back will just go from the current animation state to the base animaiton
 				playerController.m_currentState = Running; // update the current animation state
+				playerController.isFinished = true;
 			}
 			break;
 		// If the player is turning left, push the turning left animation to transition to it
@@ -218,12 +219,16 @@ void SceneModel::Render()
 		// If the player is turning right, push the turning left animation to transition to it
 		// and set the relevant states
 		case TurnRight:
-			if(playerController.m_currentState != TurnRight)
+			if(playerController.isFinished)
 			{
+				m_playerdirection.Rotate(13.0f, Cartesian3(0.0f, 1.0f, 0.0f));
+				//std::cout << "CALLING: " << std::endl;
+				//m_playerdirection.Rotate(3.0f, Cartesian3(0.0f, 1.0f, 0.0f));
 				// set the current time so we know when the current animation started playing, this is needed for blending
 				playerController.timeStart = std::chrono::high_resolution_clock::now(); // provide current time when animation started
 				playerController.transitionTo.push_back(veerRightCycle); // provide the relevant animation to transition to
 				playerController.isTransitioningBack = false; // set this to false since we will moving out of the run state
+				playerController.isFinished = false;
 				playerController.m_currentState = TurnRight; // set the current state to the new state to prevent pushing more of the same anim
 			}
 			break;
@@ -316,6 +321,7 @@ void SceneModel::EventCharacterTurnLeft()
 void SceneModel::EventCharacterTurnRight()
 	{ // EventCharacterTurnRight()
 		playerController.m_AnimState = TurnRight; // set the new animation state of the player
+		// m_playerdirection.Rotate(3.0f, Cartesian3(0.0f, 1.0f, 0.0f));
 	} // EventCharacterTurnRight()
 	
 void SceneModel::EventCharacterForward()

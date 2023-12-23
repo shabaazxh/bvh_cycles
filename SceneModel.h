@@ -100,9 +100,7 @@ class SceneModel
 
 	// position of the repeating running cycle 
 	Cartesian3 m_controllerLessRunCyclePosition;
-
 	// current animation state of the player/character
-	
 
 	}; // class SceneModel
 
